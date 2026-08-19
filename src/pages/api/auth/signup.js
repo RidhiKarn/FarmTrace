@@ -29,13 +29,17 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Email already registered' })
     }
 
-    // Count existing users with this role for farmtraceId generation
-    const roleCount = await prisma.user.count({
-      where: { role }
+    // Base the next farmtraceId on the highest one actually in use, not a
+    // row count — count() drifts out of sync (and collides) once any user
+    // with this role has ever been deleted.
+    const lastUser = await prisma.user.findFirst({
+      where: { role },
+      orderBy: { farmtraceId: 'desc' }
     })
+    const lastNum = lastUser ? parseInt(lastUser.farmtraceId.split('-').pop(), 10) || 0 : 0
 
     // Generate farmtraceId
-    const farmtraceId = generateFarmtraceId(role, roleCount)
+    const farmtraceId = generateFarmtraceId(role, lastNum)
 
     // Hash password
     const passwordHash = await hashPassword(password)
@@ -73,6 +77,6 @@ export default async function handler(req, res) {
     })
   } catch (error) {
     console.error('Signup error:', error)
-    res.status(500).json({ error: 'Internal server error', debugMessage: error.message, debugStack: error.stack })
+    res.status(500).json({ error: 'Internal server error' })
   }
 }

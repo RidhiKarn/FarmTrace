@@ -93,9 +93,14 @@ async function handlePost(req, res) {
       return res.status(400).json({ error: 'Crop, quantity, and price are required' })
     }
 
-    // Generate batch code
-    const batchCount = await prisma.batch.count()
-    const batchCode = generateBatchCode(batchCount)
+    // Base the next batch code on the highest one actually in use, not a
+    // row count — count() drifts out of sync (and collides) once any batch
+    // has ever been deleted.
+    const lastBatch = await prisma.batch.findFirst({
+      orderBy: { batchCode: 'desc' }
+    })
+    const lastNum = lastBatch ? parseInt(lastBatch.batchCode.split('-').pop(), 10) || 0 : 0
+    const batchCode = generateBatchCode(lastNum)
 
     // Create batch
     const batch = await prisma.batch.create({
