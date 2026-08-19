@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  farmtraceId   String   @unique
+  name          String
+  email         String   @unique
+  passwordHash  String
+  role          String   // FARMER, VILLAGE_TRADER, APMC_AGENT, WHOLESALER, TRANSPORTER, RETAILER, REGULATOR
+  language      String   @default("en")
+  village       String?
+  state         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  createdBatches    Batch[]    @relation("BatchCreator")
+  ownedBatches      Batch[]    @relation("BatchOwner")
+  transfersFrom     Transfer[] @relation("TransferFrom")
+  transfersTo       Transfer[] @relation("TransferTo")
+  transporterTrips  Transfer[] @relation("Transporter")
+}
+
+model Batch {
+  id               String   @id @default(cuid())
+  batchCode        String   @unique
+  crop             String
+  quantityKg       Float
+  basePricePerKg   Float    // Farmer's original price
+  auctionPricePerKg Float?  // Price set by APMC agent after auction
+  retailPricePerKg Float?   // Final retail price
+  originVillage    String?
+  originState      String?
+  status           String   @default("CREATED") // CREATED, AT_VILLAGE_TRADER, AT_APMC, AT_WHOLESALER, IN_TRANSIT, AT_RETAILER
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  createdById     String
+  createdBy       User     @relation("BatchCreator", fields: [createdById], references: [id])
+
+  currentOwnerId  String
+  currentOwner    User     @relation("BatchOwner", fields: [currentOwnerId], references: [id])
+
+  transfers       Transfer[]
+}
+
+model Transfer {
+  id              String    @id @default(cuid())
+  otp             String
+  dropoffOtp      String?
+  pickupLocation  String
+  dropoffLocation String
+  pickupTime      DateTime?
+  dropoffTime     DateTime?
+  accepted        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  batchId         String
+  batch           Batch     @relation(fields: [batchId], references: [id])
+
+  fromOwnerId     String
+  fromOwner       User      @relation("TransferFrom", fields: [fromOwnerId], references: [id])
+
+  toOwnerId       String
+  toOwner         User      @relation("TransferTo", fields: [toOwnerId], references: [id])
+
+  transporterId   String?
+  transporter     User?     @relation("Transporter", fields: [transporterId], references: [id])
+}
+
+// Ledger: replaces the old file-based blockchain/chain.json so records
+// survive restarts and deploys instead of resetting on every server start.
+model Block {
+  id           String   @id @default(cuid())
+  index        Int      @unique
+  timestamp    DateTime
+  previousHash String
+  hash         String
+  nonce        Int
+  createdAt    DateTime @default(now())
+
+  transactions LedgerTransaction[]
+}
+
+model LedgerTransaction {
+  id        String   @id @default(cuid())
+  txId      String   @unique
+  type      String
+  batchCode String?
+  data      Json
+  timestamp DateTime
+
+  blockId   String
+  block     Block    @relation(fields: [blockId], references: [id])
+
+  @@index([batchCode])
+  @@index([type])
+}
