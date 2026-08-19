@@ -21,13 +21,16 @@ const DIFFICULTY = 2 // Number of leading zeros required in hash
 // Postgres stores transaction payloads as jsonb, which does not preserve
 // object key order. Sorting keys before hashing makes the hash stable
 // whether the data came from memory (at mine time) or from the database
-// (at verify time).
+// (at verify time). Keys with an undefined value are skipped, matching
+// what JSON.stringify does when the object is actually written to jsonb —
+// otherwise a field that's undefined in memory but absent in storage
+// would hash differently at mine time than at verify time.
 function canonicalStringify(value) {
   if (Array.isArray(value)) {
-    return `[${value.map(canonicalStringify).join(',')}]`
+    return `[${value.map((v) => canonicalStringify(v === undefined ? null : v)).join(',')}]`
   }
   if (value && typeof value === 'object') {
-    const keys = Object.keys(value).sort()
+    const keys = Object.keys(value).filter((k) => value[k] !== undefined).sort()
     return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalStringify(value[k])}`).join(',')}}`
   }
   return JSON.stringify(value)

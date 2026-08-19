@@ -84,7 +84,7 @@ export default async function handler(req, res) {
 
     // Record on blockchain
     try {
-      const blockchainTx = await recordTransferAccepted(updatedTransfer.batch, updatedTransfer.fromOwner, updatedTransfer.toOwner)
+      const blockchainTx = await recordTransferAccepted(updatedTransfer, updatedTransfer.batch, updatedTransfer.toOwner)
       console.log('Transfer recorded on blockchain:', blockchainTx.blockHash)
     } catch (blockchainError) {
       console.error('Blockchain recording failed:', blockchainError)
